@@ -251,17 +251,57 @@ EOF
     ifup "$IFACE" 2>/dev/null || true
   fi
 }
+configure_sudoers_logging() {
+  log "3.x) Configuring sudo I/O logging via /etc/sudoers.d (validated by visudo)"
+
+  # iolog_dir가 실제로 존재해야 평가에서 OK가 나오는 경우가 많음
+  mkdir -p /var/log/sudo
+  chown root:root /var/log/sudo
+  chmod 750 /var/log/sudo
+
+  local d="/etc/sudoers.d"
+  local f="${d}/born2beroot"
+
+  mkdir -p "$d"
+  chmod 750 "$d"
+  chown root:root "$d"
+
+  # 드롭인 파일 생성 (sudoers 본파일 직접 수정 X)
+  cat > "$f" <<'EOF'
+Defaults  authfail_message="%d incorrect password attempts"
+Defaults  badpass_message="Incorrect password"
+Defaults  log_input
+Defaults  log_output
+Defaults  requiretty
+Defaults  iolog_dir="/var/log/sudo/"
+Defaults  passwd_tries=3
+Defaults  secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+EOF
+
+  chmod 440 "$f"
+  chown root:root "$f"
+
+  # visudo로 문법 검증 (문법 틀리면 바로 중단)
+  if ! visudo -c -f "$f"; then
+    warn "visudo validation failed for $f"
+    exit 1
+  fi
+
+  # 전체 sudo 설정도 같이 검증(안전)
+  if ! visudo -c; then
+    warn "visudo validation failed for /etc/sudoers"
+    exit 1
+  fi
+}
 
 main() {
-  apt-get install vim lvm2 fdisk sudo ufw net-tools -y
-  echo "export PATH=\$PATH:/sbin" >> ~/.bashrc
-  source ~/.bashrc
   require_root
   ensure_target_user
 
   install_packages
   setup_path
   add_user_to_sudo
+  configure_sudoers_logging
   configure_ssh
   configure_login_defs
   configure_pam_pwquality
