@@ -253,6 +253,9 @@ EOF
 }
 
 main() {
+  apt-get install vim lvm2 fdisk sudo ufw net-tools -y
+  echo "export PATH=\$PATH:/sbin" >> ~/.bashrc
+  source ~/.bashrc
   require_root
   ensure_target_user
 
